@@ -23,7 +23,7 @@ const User=require('./models/user');
 const Session = require('./models/session');
 const { request } = require('http');
 
-mongoose.connect("mongodb://localhost:27017/judiciary").then(()=>{
+mongoose.connect(process.env.DBURL).then(()=>{
     console.log("db connected");
 })
 
@@ -399,5 +399,5 @@ app.use("*", (req, res) => {
 
 
 app.listen(9000,()=>{
-    console.log("listening on port 3000....");
+    console.log("listening on port 9000....");
 })
