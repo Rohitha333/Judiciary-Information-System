@@ -6,6 +6,7 @@ const methodOverride = require('method-override');
 const MongoStore = require('connect-mongo');
 const bcrypt=require('bcrypt');
 const dotenv=require('dotenv');
+const jwt=require('jsonwebtoken');
 
 dotenv.config();
 
@@ -27,9 +28,8 @@ mongoose.connect(process.env.DBURL).then(()=>{
     console.log("db connected");
 })
 
-var loggedinusername="";
-
-localStorage.setItem('loggedby',"");
+// localStorage.setItem('loggedby',"");
+localStorage.setItem('loggedby_token',"");
 
 const app=express();
 
@@ -40,10 +40,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
 app.get('/',async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
        return res.redirect('/signin');
     }
-    loggedinusername=localStorage.getItem('loggedby');
+   var loggedinusername=jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje');
     const current=await User.findOne({username:loggedinusername});
     const lawer=false;
    const cur=await Case.find();
@@ -56,26 +56,27 @@ app.get('/',async(req,res)=>{
 })
 
 app.get("/about",(req,res)=>{
-    res.render("about",{current:localStorage.getItem('loggedby')});
+    var current="";
+    console.log(localStorage.getItem('loggedby_token'));
+    var token=localStorage.getItem('loggedby_token');
+    if(token)  current=jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje');
+    return res.render("about",{current:current});
 })
 
 app.get('/pastcases', async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
        return res.redirect('/signin');
     }
-    const current=await User.findOne({username:localStorage.getItem('loggedby')});
+    const current=await User.findOne({username:jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje')});
     const cur=await Case.find({closed:true});
     res.render("cases",{cur:cur,current:current});
 })
 
 app.get('/activecases', async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
        return res.redirect('/signin');
     }
-    if(localStorage.getItem('loggedby')==""){
-       return res.redirect('/signin');
-    }
-    const current=await User.findOne({username:localStorage.getItem('loggedby')});
+    const current=await User.findOne({username:jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje')});
     const cur=await Case.find({closed:false});
     var cases=[];
     for(let i=0;i<cur.length;i++){
@@ -90,12 +91,12 @@ app.get('/activecases', async(req,res)=>{
 })
 
 app.get('/upcomingcases',async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
        return res.redirect('/signin');
     }
     const cur=await Case.find({closed:false});
     var cases=[];
-    const current=await User.findOne({username:localStorage.getItem('loggedby')});
+    const current=await User.findOne({username:jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje')});
     for(let i=0;i<cur.length;i++){
         var today=new Date();
         if(cur[i].dateOfHearing.getDate()==today.getDate() && cur[i].dateOfHearing.getMonth()==today.getMonth() &&
@@ -111,38 +112,38 @@ app.get('/upcomingcases',async(req,res)=>{
 })
 
 app.get('/allcases',async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
        return res.redirect('/signin');
     }
-    const current=await User.findOne({username:localStorage.getItem('loggedby')});
+    const current=await User.findOne({username:jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje')});
     const cur=await Case.find();
     res.render("cases",{cur:cur,current:current});
 })
 
 app.get('/addcase', async(req,res)=>{
-    loggedinusername=localStorage.getItem('loggedby');
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
         return res.redirect('/signin');
     }
+    var loggedinusername=jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje');
     const exist=await User.findOne({username:loggedinusername});
     if(exist.isRegistrer==false){
         return res.redirect('/');
     }
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
        return res.redirect('/signin');
     }
     res.render("addcase",{error:""});
 })
 
 app.get('/signin',(req,res)=>{
-    if(localStorage.getItem('loggedby')!=""){
+    if(localStorage.getItem('loggedby_token')!=""){
         return res.redirect('/');
     }
     res.render("signin",{error:""});
 })
 
 app.get('/signup',(req,res)=>{
-    if(localStorage.getItem('loggedby')!=""){
+    if(localStorage.getItem('loggedby_token')!=""){
         return res.redirect('/');
     }
     res.render("signup",{errors:""});
@@ -190,7 +191,7 @@ app.post('/signup',async(req,res)=>{
 
 app.post('/signin', async(req,res)=>{
     const { username, password } = req.body;
-    loggedinusername=req.body.username;
+    var loggedinusername=req.body.username;
     const exist=await User.findOne({username});
     if(!exist){
         res.render('signin',{error:"User Doesn't Exist"});
@@ -199,14 +200,17 @@ app.post('/signin', async(req,res)=>{
         res.render('signin',{error:"Incorrect Password"});
     }
     else {
-        localStorage.setItem('loggedby',req.body.username);
+      //  localStorage.setItem('loggedby',req.body.username);
+        const gentoken=jwt.sign(req.body.username,'bhkdgrhikkghje');
+        console.log(gentoken);
+        localStorage.setItem('loggedby_token',gentoken);
+        console.log(localStorage.getItem('loggedby_token'));
         res.redirect("/");
     }
 })
 
 app.get('/signout',(req,res)=>{
-    localStorage.setItem('loggedby',"");
-    loggedinusername = "";
+    localStorage.setItem('loggedby_token',"");
     res.redirect('/signin');
 })
 
@@ -265,10 +269,10 @@ app.post('/addcase', async (req,res)=>{
 })
 
 app.get('/case/:id', async (req, res) => {
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
         return res.redirect('/signin');
     }
-    loggedinusername=localStorage.getItem('loggedby');
+    var loggedinusername=jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje')
     const exist=await User.findOne({username:loggedinusername});
     var isRegistrer=true;
     if(exist.isRegistrer==false){
@@ -297,7 +301,7 @@ app.post('/case/:id/addSession', async (req, res) => {
 })
 
 app.post('/case/:id/closeCase',async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
         return res.redirect('/signin');
     }
     const id=req.params.id;
@@ -308,10 +312,10 @@ app.post('/case/:id/closeCase',async(req,res)=>{
 })
 
 app.post('/addjudge',async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
         return res.redirect('/signin');
     }
-    const adder=localStorage.getItem('loggedby');
+    const adder=jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje');
     const adderdetails=await User.findOne({username:adder});
     if(adderdetails.isRegistrer==false){
         return res.redirect('/');
@@ -334,10 +338,10 @@ app.post('/addjudge',async(req,res)=>{
 })
 
 app.post('/addlawer',async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
         return res.redirect('/signin');
     }
-    const adder=localStorage.getItem('loggedby');
+    const adder=jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje');
     const adderdetails=await User.findOne({username:adder});
     if(adderdetails.isRegistrer==false){
         return res.redirect('/');
@@ -360,19 +364,19 @@ app.post('/addlawer',async(req,res)=>{
 })
 
 app.get('/changepassword',async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
         return res.redirect('/signin');
     }
-    const current=await User.findOne({username:localStorage.getItem('loggedby')});
+    const current=await User.findOne({username:jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje')});
     var error=[];
         res.render("changePassword",{current:current,error:error});
 })
 
 app.post('/changepassword',async(req,res)=>{
-    if(localStorage.getItem('loggedby')==""){
+    if(localStorage.getItem('loggedby_token')==""){
         return res.redirect('/signin');
     }
-    const exist=await User.findOne({username:localStorage.getItem('loggedby')})
+    const exist=await User.findOne({username:jwt.verify(localStorage.getItem('loggedby_token'),'bhkdgrhikkghje')})
     const error=[];
     if(req.body.currentPassword!=exist.password){
         error.push("Please Enter Valid Current Password");
